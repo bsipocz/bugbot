@@ -1,0 +1,32 @@
+name: bugbot
+
+on:
+  issues:
+    types: ['opened']
+  issue_comment:
+    types: ['created']
+
+jobs:
+  default:
+    runs-on: ubuntu-latest
+    steps:
+    # Check out code from the repo this workflow file is in.
+    - name: Checkout code
+      uses: actions/checkout@v2
+    # Fetch tags if repo uses setuptools_scm for package versioning.
+    - name: Fetch tags
+      run: git fetch --prune --unshallow --tags
+    # Install Python.
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    # Install dependencies and the package, if necessary.
+    # NOTE: Using dev version of baldrick because release is very old.
+    - name: Install and build
+      run: |
+        python -m pip install --upgrade pip setuptools
+        python -m pip install git+https://github.com/OpenAstronomy/baldrick
+    # Run bot script.
+    - name: Bug bot
+      run: python -m bugbot.py

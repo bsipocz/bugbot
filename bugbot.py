@@ -3,7 +3,7 @@ def main():
 
     # grab issue metadata
 
-    # no-op if special label not present
+    # no-op if special label not present -- runbugbot
 
     # is this new issue? is this a new comment?
 

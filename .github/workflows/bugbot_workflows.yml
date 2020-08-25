@@ -27,7 +27,7 @@ jobs:
     - name: Install and build
       run: |
         python -m pip install --upgrade pip setuptools
-        python -m pip install PyGithub pytest-astropy-header pytest-remotedata
+        python -m pip install PyGithub pytest-remotedata
     # Run bot script.
     # TODO: For production, repo will call an external bugbot.
     - name: Bug bot

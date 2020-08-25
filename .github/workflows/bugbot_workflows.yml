@@ -29,6 +29,7 @@ jobs:
         python -m pip install PyGithub pytest-astropy-header pytest-remotedata
     # Run bot script.
     # REMOVE ME: printenv is for debug only
+    # TODO: Graceful exit if there is no code to test.
     # TODO: For production, repo will call an external bugbot.
     - name: Bug bot
       run: |

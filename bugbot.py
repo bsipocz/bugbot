@@ -69,6 +69,13 @@ def main(debug=False):
 
     logger.info(f'Run "pytest {BUGBOT_FILENAME}" to test code.')
 
+    # TODO: Need authenticated access when initializing Github() above.
+    # Post a comment to the issue.
+    # logger.debug('Attempting to post a comment')
+    # issue_handler.create_comment(
+    #     f'Hello, I am bug bot. '
+    #     f'Please check https://github.com/{repo_name}/actions')
+
 
 def get_code_snippet(body_content):
     """Extract code snippet from well-behaved body content from GitHub event

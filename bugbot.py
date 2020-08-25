@@ -8,6 +8,8 @@ from github import Github
 __all__ = []
 
 BUGBOT_LABEL = 'runbugbot'
+BUGBOG_TITLE = '**run bugbot run**'
+BUGBOT_FILENAME = 'test_me.py'
 
 
 def main(debug=False):
@@ -26,7 +28,7 @@ def main(debug=False):
     logger.debug(
         f'GitHub event: {json.dumps(gh_event, sort_keys=True, indent=4)}')
 
-    repo_name = os.environ['GITHUB_REPOSITORY']
+    repo_name = gh_event['repository']['full_name']
     repo_handler = pygh.get_repo(repo_name)
     logger.debug(f'Repo name: {repo_name}')
 
@@ -35,187 +37,91 @@ def main(debug=False):
     logger.debug(f'Issue number: {issue_num}')
 
     # No-op if special label not present
+    # NOTE: Strictly speaking, you can extract this out of gh_event without
+    # using PyGithub, but we need PyGithub to check membership later anyway,
+    # so might as well.
     if not any([BUGBOT_LABEL in s.name for s in issue_handler.labels]):
         logger.info(f'{BUGBOT_LABEL} not found, stopping')
         return
 
-    # is this new issue? is this a new comment?
-
     # TODO: Make sure author is a maintainer -- Need authenticated access
-    # author_name = gh_event['sender']['login']
-    # logger.debug(f'Issue author: {author_name}')
+    # when initializing Github() above.
+    # A hack without needing auth might be keeping a list as Actions
+    # secret but the maintenance and security implications need understanding.
+    author_name = gh_event['sender']['login']
 
-    # grab code snippet
+    if 'comment' in gh_event:  # New comment on existing issue
+        logger.debug(f'Comment author: {author_name}')
+        body_content = gh_event['comment']['body']
+    else:  # New issue
+        logger.debug(f'Issue author: {author_name}')
+        body_content = gh_event['issue']['body']
 
-    # sanitize code snippet
+    # Grab code snippet and disable internet.
+    code_lines = inject_no_internet(get_code_snippet(body_content))
 
-    # pipe code snippet into shell script, inject code to disable internet
-    # TODO: Use no_internet defined below.
+    # TODO: Sanitize code snippet.
 
-    # run shell script
+    # Write code snippet into shell script.
+    with open(BUGBOT_FILENAME, 'w') as fp:
+        for line in code_lines:
+            fp.write(line + os.linesep)
 
-
-# These functions are copied from pytest-remotedata, with Astropy stuff
-# stripped, because it does not make sense to have the bot be dependent on
-# a pytest plugin with Astropy settings.
-
-import contextlib  # noqa: E402
-import socket  # noqa: E402
-import urllib  # noqa: E402
-
-# save original socket method for restoration
-# These are global so that re-calling the turn_off_internet function doesn't
-# overwrite them again
-socket_original = socket.socket
-socket_create_connection = socket.create_connection
-socket_bind = socket.socket.bind
-socket_connect = socket.socket.connect
-
-INTERNET_OFF = False
-
-# urllib uses a global variable to cache its default "opener" for opening
-# connections for various protocols; we store it off here so we can restore to
-# the default after re-enabling internet use
-_orig_opener = None
+    logger.info(f'Run "pytest {BUGBOT_FILENAME}" to test code.')
 
 
-def _resolve_host_ips(hostname, port=80):
+def get_code_snippet(body_content):
+    """Extract code snippet from well-behaved body content from GitHub event
+    context. Body content is all one string.
+
+    Example::
+
+        A test comment to trigger Actions with code snippet.
+
+        **Run bugbot run**
+
+        ```python
+        x = [1, 2, 3]
+        assert sum(x) == 5  # Doesn't work, halp
+        ```
+
     """
-    Obtain all the IPs, including aliases, in a way that supports
-    IPv4/v6 dual stack.
+    # Body has \r\n
+    lines = [s.strip('\r') for s in body_content.split(os.linesep)]
+    code_markdown = '```'
+    code_lines = []
+    found_incantation = False
+
+    # Ignore everything before special incantation (case-insensitive)
+    for s in lines:
+        if found_incantation and not s.startswith(code_markdown):
+            code_lines.append(s)
+        elif s.strip().lower() == BUGBOG_TITLE:
+            found_incantation = True
+
+    return code_lines
+
+
+def inject_no_internet(code_lines):
+    """Disable internet for the given code lines and turn them into
+    test function.
     """
-    try:
-        ips = set([s[-1][0] for s in socket.getaddrinfo(hostname, port)])
-    except socket.gaierror:
-        ips = set([])
-
-    ips.add(hostname)
-    return ips
-
-
-# ::1 is apparently another valid name for localhost?
-# it is returned by getaddrinfo when that function is given localhost
-
-def check_internet_off(original_function):
-    """
-    Wraps ``original_function``, which in most cases is assumed
-    to be a `socket.socket` method, to raise an `IOError` for any operations
-    on non-local AF_INET sockets.
-    """
-
-    def new_function(*args, **kwargs):
-        if isinstance(args[0], socket.socket):
-            if not args[0].family in (socket.AF_INET, socket.AF_INET6):
-                # Should be fine in all but some very obscure cases
-                # More to the point, we don't want to affect AF_UNIX
-                # sockets.
-                return original_function(*args, **kwargs)
-            host = args[1][0]
-            addr_arg = 1
-            valid_hosts = set(['localhost', '127.0.0.1', '::1'])
+    # TODO: For production, no_internet needs to come from a proper package.
+    # TODO: What if code is not written in a way that is compatible with
+    # pytest testing?
+    indent = '        '
+    injected_code = [
+        'from pytest_remotedata.disable_internet import no_internet',
+        '', '',
+        'def test_this_snippet():',
+        '    with no_internet():']
+    for line in code_lines:
+        if line:
+            injected_code.append(indent + line)
         else:
-            # The only other function this is used to wrap currently is
-            # socket.create_connection, which should be passed a 2-tuple, but
-            # we'll check just in case
-            if not (isinstance(args[0], tuple) and len(args[0]) == 2):
-                return original_function(*args, **kwargs)
+            injected_code.append(line)
 
-            host = args[0][0]
-            addr_arg = 0
-            valid_hosts = set(['localhost', '127.0.0.1'])
-
-        hostname = socket.gethostname()
-        fqdn = socket.getfqdn()
-
-        if host in (hostname, fqdn):
-            host = 'localhost'
-            host_ips = set([host])
-            new_addr = (host, args[addr_arg][1])
-            args = args[:addr_arg] + (new_addr,) + args[addr_arg + 1:]
-        else:
-            host_ips = _resolve_host_ips(host)
-
-        if len(host_ips & valid_hosts) > 0:  # Any overlap is acceptable
-            return original_function(*args, **kwargs)
-        else:
-            raise IOError("An attempt was made to connect to the internet. "
-                          f"The requested host was: {host}")
-    return new_function
-
-
-def turn_off_internet(verbose=False):
-    """
-    Disable internet access via python by preventing connections from being
-    created using the socket module.  Presumably this could be worked around by
-    using some other means of accessing the internet, but all default python
-    modules (urllib, requests, etc.) use socket [citation needed].
-    """
-
-    global INTERNET_OFF
-    global _orig_opener
-
-    if INTERNET_OFF:
-        return
-
-    INTERNET_OFF = True
-
-    __tracebackhide__ = True
-    if verbose:
-        print("Internet access disabled")
-
-    # Update urllib to force it not to use any proxies
-    # Must use {} here (the default of None will kick off an automatic search
-    # for proxies)
-    _orig_opener = urllib.request.build_opener()
-    no_proxy_handler = urllib.request.ProxyHandler({})
-    opener = urllib.request.build_opener(no_proxy_handler)
-    urllib.request.install_opener(opener)
-
-    socket.create_connection = check_internet_off(socket_create_connection)
-    socket.socket.bind = check_internet_off(socket_bind)
-    socket.socket.connect = check_internet_off(socket_connect)
-
-    return socket
-
-
-def turn_on_internet(verbose=False):
-    """Restore internet access."""
-
-    global INTERNET_OFF
-    global _orig_opener
-
-    if not INTERNET_OFF:
-        return
-
-    INTERNET_OFF = False
-
-    if verbose:
-        print("Internet access enabled")
-
-    urllib.request.install_opener(_orig_opener)
-
-    socket.create_connection = socket_create_connection
-    socket.socket.bind = socket_bind
-    socket.socket.connect = socket_connect
-    return socket
-
-
-@contextlib.contextmanager
-def no_internet(verbose=False):
-    """Context manager to temporarily disable internet access (if not already
-    disabled).  If it was already disabled before entering the context manager
-    (i.e. `turn_off_internet` was called previously) then this is a no-op and
-    leaves internet access disabled until a manual call to `turn_on_internet`.
-    """
-
-    already_disabled = INTERNET_OFF
-
-    turn_off_internet(verbose=verbose)
-    try:
-        yield
-    finally:
-        if not already_disabled:
-            turn_on_internet(verbose=verbose)
+    return injected_code
 
 
 if __name__ == '__main__':

@@ -5,9 +5,6 @@ on:
     types: ['opened']
   issue_comment:
     types: ['created']
-  # REMOVE ME: For debugging only
-  push:
-  pull_request:
 
 jobs:
   default:
@@ -24,11 +21,12 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: '3.x'
-    # Install dependencies and the package.
+    # Install dependencies.
+    # TODO: For production, also need to install a dev version of package.
     - name: Install and build
       run: |
         python -m pip install --upgrade pip setuptools
-        python -m pip install PyGithub
+        python -m pip install PyGithub pytest-astropy-header pytest-remotedata
     # Run bot script.
     # REMOVE ME: printenv is for debug only
     # TODO: For production, repo will call an external bugbot.
@@ -36,3 +34,4 @@ jobs:
       run: |
         printenv
         python bugbot.py
+        pytest test_me.py

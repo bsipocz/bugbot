@@ -32,7 +32,7 @@ def main(debug=False):
     repo_handler = pygh.get_repo(repo_name)
     logger.debug(f'Repo name: {repo_name}')
 
-    issue_num = gh_event['number']
+    issue_num = gh_event['issue']['number']
     issue_handler = repo_handler.get_issue(number=issue_num)
     logger.debug(f'Issue number: {issue_num}')
 

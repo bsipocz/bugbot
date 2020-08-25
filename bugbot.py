@@ -60,7 +60,7 @@ def main(debug=False):
     # Grab code snippet and disable internet.
     raw_code = get_code_snippet(body_content)
     if len(raw_code) == 0:
-        logger.info(f'No code found in {body_content}, stopping')
+        logger.info('No code found, stopping')
         return
     code_lines = inject_no_internet(raw_code)
 

@@ -5,6 +5,9 @@ on:
     types: ['opened']
   issue_comment:
     types: ['created']
+  # REMOVE ME: For debugging only
+  push:
+  pull_request:
 
 jobs:
   default:
@@ -21,12 +24,15 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: '3.x'
-    # Install dependencies and the package, if necessary.
-    # NOTE: Using dev version of baldrick because release is very old.
+    # Install dependencies and the package.
     - name: Install and build
       run: |
         python -m pip install --upgrade pip setuptools
-        python -m pip install git+https://github.com/OpenAstronomy/baldrick
+        python -m pip install PyGithub
     # Run bot script.
+    # REMOVE ME: printenv is for debug only
+    # TODO: For production, repo will call an external bugbot.
     - name: Bug bot
-      run: python -m bugbot.py
+      run: |
+        printenv
+        python bugbot.py

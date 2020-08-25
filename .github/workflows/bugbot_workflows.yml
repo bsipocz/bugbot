@@ -1,5 +1,6 @@
 name: bugbot
 
+# TODO: Do we want to support edited?
 on:
   issues:
     types: ['opened']

@@ -32,4 +32,4 @@ jobs:
     - name: Bug bot
       run: |
         python bugbot.py
-        (test -e test_me.py && pytest test_me.py) || echo test_me.py missing, skipping pytest
+        if [ -f test_me.py ]; then pytest test_me.py; fi

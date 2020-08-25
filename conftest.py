@@ -1,5 +1,12 @@
-from pytest_astropy_header.display import (PYTEST_HEADER_MODULES,
-                                           TESTED_VERSIONS)
+try:
+    from pytest_astropy_header.display import PYTEST_HEADER_MODULES
+except ImportError:
+    PYTEST_HEADER_MODULES = {}
+
+try:
+    from pytest_astropy_header.display import TESTED_VERSIONS
+except ImportError:
+    TESTED_VERSIONS = {}
 
 
 def pytest_configure(config):

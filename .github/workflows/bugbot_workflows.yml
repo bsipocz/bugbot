@@ -33,4 +33,4 @@ jobs:
     - name: Bug bot
       run: |
         python bugbot.py
-        if [ -f test_me.py ]; then pytest test_me.py; fi
+        if [ -f test_me.py ]; then pytest test_me.py -sv; fi
